@@ -1406,6 +1406,7 @@ function readPayload(cfg,text){
 }
 // link firmado de cada grupo: ?g=<n>.<firma>
 const groupSig=(cfg,i)=>b64u(hmac(cfg.secret,'g:'+i+':'+cfg.groups[i].name)).slice(0,8);
+const leaderHex=(cfg,i)=>Array.from(hmac(cfg.secret,'lh:'+i+':'+cfg.groups[i].name).slice(0,5),b=>b.toString(16).padStart(2,'0')).join('');
 const groupHex=(cfg,i)=>Array.from(hmac(cfg.secret,'gh:'+i+':'+cfg.groups[i].name).slice(0,5),b=>b.toString(16).padStart(2,'0')).join('');
 function groupFromLink(cfg){
   let g=''; try{ g=new URLSearchParams(location.search).get('g')||''; }catch(e){}
@@ -1477,7 +1478,7 @@ function route(){
   const h=location.hash.replace('#','');
   if(!CFG || (ADMIN_TEST && h==='admin')) return viewAdmin();
   if(h==='escaner') return viewScanner();
-  if(h==='lider') return viewLeader();
+  if(h==='lider'||h.startsWith('lider-')) return viewLeader();
   return viewPromoter();
 }
 window.addEventListener('hashchange',route);
@@ -1649,11 +1650,12 @@ document.addEventListener('click',e=>{ const t=e.target.closest('[data-tg]'); if
 /* ============ LÍDER ============ */
 async function viewLeader(){
   const key='pq_lider_'+CFG.eventId; let gi=store.get(key,null);
+  const lm=location.hash.match(/^#lider-(\d+)-([0-9a-f]{10})$/); if(lm&&CFG.groups[+lm[1]]&&!CFG.groups[+lm[1]].off&&leaderHex(CFG,+lm[1])===lm[2]){ gi=+lm[1]; store.set(key,gi); }
   const valid=i=>i!=null&&CFG.groups[i]&&!CFG.groups[i].off;
   if(!valid(gi)){
     app.innerHTML=`<div class="wrap">${testBar()}<h1>${esc(CFG.eventName)}</h1><p class="sub">Acceso para líderes de grupo</p>
       <div class="card"><label>Tu clave de líder</label><input id="l_pin" inputmode="numeric" maxlength="20" placeholder="Te la da el admin" autocomplete="off"><button class="btn" id="l_go">Entrar</button></div></div>`;
-    const go=()=>{ const h=hashPin($('#l_pin').value); const i=CFG.groups.findIndex(g=>!g.off&&g.ph===h); if(i<0) return toast('Clave incorrecta'); store.set(key,i); viewLeader(); };
+    const go=()=>{ const h=hashPin($('#l_pin').value.replace(/\D/g,'')); const i=CFG.groups.findIndex(g=>!g.off&&g.ph===h); if(i<0) return toast('Clave incorrecta: usa los 4 números de la clave de TU grupo'); store.set(key,i); viewLeader(); };
     $('#l_go').onclick=go; $('#l_pin').onkeydown=e=>{ if(e.key==='Enter') go(); }; return;
   }
   const g=CFG.groups[gi], link=groupLink(CFG,gi);
